@@ -1,4 +1,4 @@
-module husocket
+module github.com/XeshSufferer/husocket
 
 go 1.25.0
 
