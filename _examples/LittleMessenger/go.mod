@@ -3,7 +3,7 @@ module LittleMessenger
 go 1.25.5
 
 require (
-	github.com/XeshSufferer/husocket v0.0.0-20260221013339-3390b6eb4061 // indirect
+	github.com/XeshSufferer/husocket v0.0.0-20260221024932-b8a08fe6e478 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/fasthttp/websocket v1.5.12 // indirect

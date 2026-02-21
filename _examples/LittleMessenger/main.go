@@ -24,7 +24,7 @@ func main() {
 		// Broadcast
 		client.Broadcast("OnJoin", message.Args)
 		// Set name into context
-		client.Context.Set("name", name)
+		client.Locals.Set("name", name)
 	})
 
 	hub.RegisterHandler("SendMessage", func(client *husocket.Client, message husocket.Message) {
@@ -35,12 +35,12 @@ func main() {
 		}
 		client.Broadcast("ReceiveMessage", map[string]string{
 			"message": msg,
-			"sender":  client.Context.Get("name").(string),
+			"sender":  client.Locals.Get("name").(string),
 		})
 	})
 
 	hub.OnDisconnected(func(client *husocket.Client, conn *websocket.Conn) {
-		name := client.Context.Get("name").(string)
+		name := client.Locals.Get("name").(string)
 		client.Broadcast("OnLeave", name)
 	})
 

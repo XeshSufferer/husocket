@@ -1,5 +1,7 @@
 github.com/XeshSufferer/husocket v0.0.0-20260221013339-3390b6eb4061 h1:+1goy0YpH9tDGxAzFxRNcgFN2kJK7kE3i4nuSkClRKo=
 github.com/XeshSufferer/husocket v0.0.0-20260221013339-3390b6eb4061/go.mod h1:tPHV2GZTJR2lN6H4TF9S4aC9IfqM/MagMwAepFnv3wQ=
+github.com/XeshSufferer/husocket v0.0.0-20260221024932-b8a08fe6e478 h1:zt5YMk4U5LreWNUUVnx9zk8i8NxCyUQQ8Gx0UMHE0H0=
+github.com/XeshSufferer/husocket v0.0.0-20260221024932-b8a08fe6e478/go.mod h1:tPHV2GZTJR2lN6H4TF9S4aC9IfqM/MagMwAepFnv3wQ=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=
 github.com/andybalholm/brotli v1.2.0/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
 github.com/clipperhouse/uax29/v2 v2.7.0 h1:+gs4oBZ2gPfVrKPthwbMzWZDaAFPGYK72F0NJv2v7Vk=
