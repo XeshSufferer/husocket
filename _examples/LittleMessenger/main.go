@@ -1,4 +1,4 @@
-package LittleMessenger
+package main
 
 import (
 	"encoding/json"
@@ -21,7 +21,9 @@ func main() {
 			return
 		}
 
-		client.Broadcast("OnJoin", message)
+		// Broadcast
+		client.Broadcast("OnJoin", message.Args)
+		// Set name into context
 		client.Context.Set("name", name)
 	})
 
@@ -31,8 +33,7 @@ func main() {
 		if err != nil {
 			return
 		}
-
-		client.Broadcast("SendMessage", map[string]string{
+		client.Broadcast("ReceiveMessage", map[string]string{
 			"message": msg,
 			"sender":  client.Context.Get("name").(string),
 		})
