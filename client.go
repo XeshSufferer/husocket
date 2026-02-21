@@ -1,6 +1,7 @@
 package husocket
 
 import (
+	"encoding/json"
 	"log"
 	"sync"
 
@@ -17,7 +18,16 @@ type Client struct {
 	m              sync.Mutex
 }
 
-func (c *Client) Send(msgType int, msg []byte) error {
+func (c *Client) Send(method string, message json.RawMessage) {
+	msg := Message{method, message}
+	json, err := json.Marshal(msg)
+	if err != nil {
+		log.Println(err)
+	}
+	c.SendRaw(websocket.TextMessage, json)
+}
+
+func (c *Client) SendRaw(msgType int, msg []byte) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 	writeErr := c.Conn.WriteMessage(msgType, msg)
@@ -78,7 +88,7 @@ func (c *Client) Broadcast(mt int, msg []byte) {
 	c.hub.m.RLock()
 	defer c.hub.m.RUnlock()
 	for _, client := range c.hub.clients {
-		err := client.Send(mt, msg)
+		err := client.SendRaw(mt, msg)
 		if err != nil {
 			log.Println("Error writing to client:", err)
 		}
@@ -96,6 +106,6 @@ func (c *Client) BroadcastToRoom(roomName string, msgType int, msg []byte) {
 	c.hub.gm.RUnlock()
 
 	for _, client := range clients {
-		_ = client.Send(websocket.TextMessage, msg)
+		_ = client.SendRaw(websocket.TextMessage, msg)
 	}
 }
