@@ -18,8 +18,13 @@ type Client struct {
 	m              sync.Mutex
 }
 
-func (c *Client) Send(method string, message json.RawMessage) {
-	msg := Message{method, message}
+func (c *Client) Send(method string, message interface{}) {
+	args, err := json.Marshal(message)
+	if err != nil {
+		log.Println(err)
+	}
+
+	msg := Message{method, args}
 	json, err := json.Marshal(msg)
 	if err != nil {
 		log.Println(err)
@@ -84,7 +89,7 @@ func (c *Client) GetRooms() []string {
 	return rooms
 }
 
-func (c *Client) Broadcast(mt int, msg []byte) {
+func (c *Client) RawBroadcast(mt int, msg []byte) {
 	c.hub.m.RLock()
 	defer c.hub.m.RUnlock()
 	for _, client := range c.hub.clients {
@@ -95,7 +100,7 @@ func (c *Client) Broadcast(mt int, msg []byte) {
 	}
 }
 
-func (c *Client) BroadcastToRoom(roomName string, msgType int, msg []byte) {
+func (c *Client) RawBroadcastToRoom(roomName string, msgType int, msg []byte) {
 	c.hub.gm.RLock()
 	clients := make([]*Client, 0)
 	if r, ok := c.hub.rooms[roomName]; ok {
@@ -106,6 +111,29 @@ func (c *Client) BroadcastToRoom(roomName string, msgType int, msg []byte) {
 	c.hub.gm.RUnlock()
 
 	for _, client := range clients {
-		_ = client.SendRaw(websocket.TextMessage, msg)
+		_ = client.SendRaw(msgType, msg)
+	}
+}
+
+func (c *Client) BroadcastToRoom(roomName string, method string, msg interface{}) {
+	c.hub.gm.RLock()
+	clients := make([]*Client, 0)
+	if r, ok := c.hub.rooms[roomName]; ok {
+		for _, c := range r {
+			clients = append(clients, c)
+		}
+	}
+	c.hub.gm.RUnlock()
+
+	for _, client := range clients {
+		client.Send(method, msg)
+	}
+}
+
+func (c *Client) Broadcast(method string, msg interface{}) {
+	c.hub.m.RLock()
+	defer c.hub.m.RUnlock()
+	for _, client := range c.hub.clients {
+		client.Send(method, msg)
 	}
 }

@@ -115,3 +115,52 @@ func (h *Hub) Register(path string, app *fiber.App) {
 		}
 	}))
 }
+
+func (h *Hub) RawBroadcast(mt int, msg []byte) {
+	h.m.RLock()
+	defer h.m.RUnlock()
+	for _, client := range h.clients {
+		err := client.SendRaw(mt, msg)
+		if err != nil {
+			log.Println("Error writing to client:", err)
+		}
+	}
+}
+
+func (h *Hub) RawBroadcastToRoom(roomName string, msgType int, msg []byte) {
+	h.gm.RLock()
+	clients := make([]*Client, 0)
+	if r, ok := h.rooms[roomName]; ok {
+		for _, c := range r {
+			clients = append(clients, c)
+		}
+	}
+	h.gm.RUnlock()
+
+	for _, client := range clients {
+		_ = client.SendRaw(msgType, msg)
+	}
+}
+
+func (h *Hub) BroadcastToRoom(roomName string, method string, msg interface{}) {
+	h.gm.RLock()
+	clients := make([]*Client, 0)
+	if r, ok := h.rooms[roomName]; ok {
+		for _, c := range r {
+			clients = append(clients, c)
+		}
+	}
+	h.gm.RUnlock()
+
+	for _, client := range clients {
+		client.Send(method, msg)
+	}
+}
+
+func (h *Hub) Broadcast(method string, msg interface{}) {
+	h.m.RLock()
+	defer h.m.RUnlock()
+	for _, client := range h.clients {
+		client.Send(method, msg)
+	}
+}
