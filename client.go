@@ -12,7 +12,7 @@ import (
 type Client struct {
 	Conn           *websocket.Conn
 	Id             uuid.UUID
-	Context        *Context
+	Locals         *Locals
 	hub            *Hub
 	connectedRooms []string
 	m              sync.Mutex

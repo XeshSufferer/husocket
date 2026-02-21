@@ -68,7 +68,7 @@ func (h *Hub) Register(path string, app *fiber.App) {
 			err error
 		)
 
-		client := &Client{Conn: conn, Id: uuid.New(), hub: h, connectedRooms: make([]string, 0), Context: NewContext()}
+		client := &Client{Conn: conn, Id: uuid.New(), hub: h, connectedRooms: make([]string, 0), Locals: NewContext()}
 
 		h.m.Lock()
 		h.clients[client.Id.String()] = client
