@@ -35,10 +35,9 @@ func ListenWithGracefulShutdownWithReason(app *fiber.App, addr string, hs []*Hub
 		}()
 	}
 	wg.Wait()
+
 	time.Sleep(800 * time.Millisecond)
 	log.Println("SERVER STOP GRACEFUL...")
-
-	log.Println("SHUTTING DOWN FIBER...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -47,6 +46,8 @@ func ListenWithGracefulShutdownWithReason(app *fiber.App, addr string, hs []*Hub
 	if err != nil {
 		log.Printf("FIBER STOP ERROR: %v", err)
 	}
+
+	log.Println("SHUTTING DOWN FIBER...")
 
 	log.Println("SERVER STOP GRACEFUL! OK.")
 }
