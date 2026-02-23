@@ -1,22 +1,10 @@
-package husocket
+package core
 
-import (
-	"context"
-	"log"
-	"os"
-	"os/signal"
-	"sync"
-	"syscall"
-	"time"
-
-	"github.com/gofiber/fiber/v2"
-)
-
-func ListenWithGracefulShutdown(app *fiber.App, addr string, hs []*Hub) {
+/*func ListenWithGracefulShutdown(app *fiber.App, addr string, hs []*Hub) {
 	ListenWithGracefulShutdownWithReason(app, addr, hs, "server shutdown")
-}
+}*/
 
-func ListenWithGracefulShutdownWithReason(app *fiber.App, addr string, hs []*Hub, reason string) {
+/*func ListenWithGracefulShutdownWithReason(app *fiber.App, addr string, hs []*Hub, reason string) {
 	go func() {
 		if err := app.Listen(addr); err != nil {
 			log.Printf("SERVER START ERR: %v", err)
@@ -51,3 +39,4 @@ func ListenWithGracefulShutdownWithReason(app *fiber.App, addr string, hs []*Hub
 
 	log.Println("SERVER STOP GRACEFUL! OK.")
 }
+*/

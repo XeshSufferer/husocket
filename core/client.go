@@ -1,16 +1,14 @@
-package husocket
+package core
 
 import (
 	"encoding/json"
+	"github.com/google/uuid"
 	"log"
 	"sync"
-
-	"github.com/gofiber/contrib/websocket"
-	"github.com/google/uuid"
 )
 
 type Client struct {
-	Conn           *websocket.Conn
+	Conn           WSConnection
 	Id             uuid.UUID
 	Locals         *Locals
 	hub            *Hub
@@ -29,7 +27,7 @@ func (c *Client) Send(method string, message interface{}) {
 	if err != nil {
 		log.Println(err)
 	}
-	c.SendRaw(websocket.TextMessage, json)
+	c.SendRaw(int(MessageText), json)
 }
 
 func (c *Client) SendRaw(msgType int, msg []byte) error {

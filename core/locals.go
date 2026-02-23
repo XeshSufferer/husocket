@@ -1,4 +1,4 @@
-package husocket
+package core
 
 import "sync"
 

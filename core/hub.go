@@ -1,4 +1,4 @@
-package husocket
+package core
 
 import (
 	"encoding/json"
@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofiber/contrib/websocket"
-	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
 
@@ -18,8 +16,18 @@ type Hub struct {
 	m        sync.RWMutex
 	gm       sync.RWMutex
 
-	onConnected    func(*Client, *websocket.Conn)
-	onDisconnected func(*Client, *websocket.Conn)
+	onConnected    func(*Client, WSConnection)
+	onDisconnected func(*Client, WSConnection)
+	isCloseError   func(error, ...CloseCode) bool
+}
+
+type WSConnection interface {
+	WriteMessage(mt int, data []byte) error
+	ReadMessage() (int, []byte, error)
+	Close() error
+	WriteControl(mt int, data []byte, deadline time.Time) error
+	SetReadDeadline(t time.Time) error
+	SetWriteDeadline(t time.Time) error
 }
 
 type Message struct {
@@ -28,96 +36,84 @@ type Message struct {
 }
 
 func New() *Hub {
-	return &Hub{
+	h := &Hub{
 		clients:        make(map[string]*Client),
 		handlers:       make(map[string]func(*Client, Message)),
 		rooms:          make(map[string]map[string]*Client),
 		m:              sync.RWMutex{},
 		gm:             sync.RWMutex{},
-		onConnected:    func(*Client, *websocket.Conn) {},
-		onDisconnected: func(*Client, *websocket.Conn) {},
+		onConnected:    func(*Client, WSConnection) {},
+		onDisconnected: func(*Client, WSConnection) {},
 	}
+
+	log.SetPrefix("[husocket] ")
+
+	h.RegisterHandler("close", func(client *Client, message Message) {
+		log.Println("close client")
+		client.Conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+		client.Conn.Close()
+	})
+	return h
 }
 
-func (h *Hub) OnConnected(f func(*Client, *websocket.Conn)) {
+func (h *Hub) OnConnected(f func(*Client, WSConnection)) {
 	h.onConnected = f
 }
 
-func (h *Hub) OnDisconnected(f func(*Client, *websocket.Conn)) {
+func (h *Hub) OnDisconnected(f func(*Client, WSConnection)) {
 	h.onDisconnected = f
+}
+
+func (h *Hub) ServeWS(conn WSConnection) {
+	client := &Client{
+		Conn:           conn,
+		Id:             uuid.New(),
+		hub:            h,
+		connectedRooms: make([]string, 0),
+		Locals:         NewContext(),
+	}
+
+	h.m.Lock()
+	h.clients[client.Id.String()] = client
+	h.m.Unlock()
+
+	h.onConnected(client, conn)
+	defer h.disconnect_internal(client)
+
+	for {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+
+		mt, msg, readErr := conn.ReadMessage()
+
+		if readErr != nil {
+			if h.isCloseError != nil && !h.isCloseError(readErr, CloseGoingAway, CloseAbnormalClosure) {
+				log.Printf("Client disconnected: %v", readErr)
+			}
+			return
+		}
+
+		if mt != int(MessageText) {
+			continue
+		}
+
+		var message Message
+		if parseErr := json.Unmarshal(msg, &message); parseErr != nil {
+			log.Printf("JSON parse error: %v", parseErr)
+			continue
+		}
+
+		log.Printf("Received: method=%s", message.Method)
+
+		if handler, ok := h.handlers[message.Method]; ok {
+			handler(client, message)
+		}
+	}
 }
 
 func (h *Hub) RegisterHandler(method string, handler func(*Client, Message)) {
 	h.m.Lock()
 	defer h.m.Unlock()
 	h.handlers[method] = handler
-}
-
-func (h *Hub) Register(path string, app *fiber.App) {
-	log.SetPrefix("[husocket] ")
-	app.Use(path, func(c *fiber.Ctx) error {
-		if websocket.IsWebSocketUpgrade(c) {
-			c.Locals("allowed", true)
-			return c.Next()
-		}
-		return fiber.ErrUpgradeRequired
-	})
-
-	app.Get(path, websocket.New(func(conn *websocket.Conn) {
-		client := &Client{
-			Conn:           conn,
-			Id:             uuid.New(),
-			hub:            h,
-			connectedRooms: make([]string, 0),
-			Locals:         NewContext(),
-		}
-
-		h.m.Lock()
-		h.clients[client.Id.String()] = client
-		h.m.Unlock()
-
-		h.onConnected(client, conn)
-		defer h.disconnect_internal(client)
-
-		for {
-			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-
-			mt, msg, readErr := conn.ReadMessage()
-
-			if readErr != nil {
-				if websocket.IsUnexpectedCloseError(readErr,
-					websocket.CloseGoingAway,
-					websocket.CloseAbnormalClosure,
-				) {
-					log.Printf("Client disconnected: %v", readErr)
-				} else {
-					log.Printf("Read error: %v", readErr)
-				}
-				return
-			}
-
-			if mt != websocket.TextMessage {
-				continue
-			}
-
-			var message Message
-			if parseErr := json.Unmarshal(msg, &message); parseErr != nil {
-				log.Printf("JSON parse error: %v", parseErr)
-				continue
-			}
-
-			log.Printf("Received: method=%s", message.Method)
-
-			if handler, ok := h.handlers[message.Method]; ok {
-				handler(client, message)
-			}
-		}
-	}))
-
-	h.RegisterHandler("close", func(client *Client, message Message) {
-		client.Conn.SetReadDeadline(time.Now().Add(time.Second * 5))
-		client.Conn.Close()
-	})
 }
 
 func (h *Hub) RawBroadcast(mt int, msg []byte) {
@@ -144,6 +140,10 @@ func (h *Hub) RawBroadcastToRoom(roomName string, msgType int, msg []byte) {
 	for _, client := range clients {
 		_ = client.SendRaw(msgType, msg)
 	}
+}
+
+func (h *Hub) SetCloseErrorChecker(f func(error, ...CloseCode) bool) {
+	h.isCloseError = f
 }
 
 func (h *Hub) BroadcastToRoom(roomName string, method string, msg interface{}) {
@@ -208,8 +208,11 @@ func (h *Hub) disconnect_internal(client *Client) {
 	}
 	client.m.Unlock()
 
-	closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "server shutting down")
-	_ = client.Conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second*5))
+	_ = client.Conn.WriteControl(
+		int(CloseGoingAway),
+		[]byte("server shutting down"),
+		time.Now().Add(time.Second*5),
+	)
 
 	time.Sleep(100 * time.Millisecond)
 	client.Conn.Close()

@@ -3,18 +3,17 @@ package main
 import (
 	"encoding/json"
 
-	"github.com/XeshSufferer/husocket"
-	"github.com/gofiber/contrib/websocket"
+	fiber_adapter "github.com/XeshSufferer/husocket/adapters/fiber"
+	"github.com/XeshSufferer/husocket/core"
 	"github.com/gofiber/fiber/v2"
 )
 
 func main() {
 	app := fiber.New()
-	hub := husocket.New()
+	hub := core.New()
 
-	hub.Register("app", app)
-
-	hub.RegisterHandler("Join", func(client *husocket.Client, message husocket.Message) {
+	fiber_adapter.UseFiberWS("app", app, hub)
+	hub.RegisterHandler("Join", func(client *core.Client, message core.Message) {
 		var name string
 		err := json.Unmarshal(message.Args, &name)
 		if err != nil {
@@ -27,7 +26,7 @@ func main() {
 		client.Locals.Set("name", name)
 	})
 
-	hub.RegisterHandler("SendMessage", func(client *husocket.Client, message husocket.Message) {
+	hub.RegisterHandler("SendMessage", func(client *core.Client, message core.Message) {
 		var msg string
 		err := json.Unmarshal(message.Args, &msg)
 		if err != nil {
@@ -39,7 +38,7 @@ func main() {
 		})
 	})
 
-	hub.OnDisconnected(func(client *husocket.Client, conn *websocket.Conn) {
+	hub.OnDisconnected(func(client *core.Client, conn core.WSConnection) {
 		name := client.Locals.Get("name").(string)
 		client.Broadcast("OnLeave", name)
 	})
