@@ -9,7 +9,7 @@ import (
 func main() {
 	app := &fasthttp.Server{}
 	hub := core.New()
-	fasthttp_adapter.UseFastHTTPWS("/ws", app, hub)
+	fasthttp_adapter.UseFastHTTPWS("/app", app, hub)
 	hub.RegisterHandler("ping", func(client *core.Client, message core.Message) {
 		client.Send("pong", "pong!")
 	})
