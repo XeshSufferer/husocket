@@ -23,7 +23,7 @@ func main() {
 
 		// Broadcast
 		client.Broadcast("OnJoin", message.Args)
-		// Set name into context
+		// Set name into locals
 		client.Locals.Set("name", name)
 	})
 

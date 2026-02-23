@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
@@ -53,6 +54,7 @@ func (h *Hub) RegisterHandler(method string, handler func(*Client, Message)) {
 }
 
 func (h *Hub) Register(path string, app *fiber.App) {
+	log.SetPrefix("[husocket] ")
 	app.Use(path, func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
 			c.Locals("allowed", true)
@@ -62,58 +64,60 @@ func (h *Hub) Register(path string, app *fiber.App) {
 	})
 
 	app.Get(path, websocket.New(func(conn *websocket.Conn) {
-		var (
-			mt  int
-			msg []byte
-			err error
-		)
-
-		client := &Client{Conn: conn, Id: uuid.New(), hub: h, connectedRooms: make([]string, 0), Locals: NewContext()}
+		client := &Client{
+			Conn:           conn,
+			Id:             uuid.New(),
+			hub:            h,
+			connectedRooms: make([]string, 0),
+			Locals:         NewContext(),
+		}
 
 		h.m.Lock()
 		h.clients[client.Id.String()] = client
 		h.m.Unlock()
 
 		h.onConnected(client, conn)
-
-		defer func() {
-			h.m.Lock()
-			delete(h.clients, client.Id.String())
-			h.m.Unlock()
-			h.onDisconnected(client, conn)
-
-			client.m.Lock()
-			for _, room := range client.connectedRooms {
-				client.internalRemoveFromRoom(room)
-			}
-			client.m.Unlock()
-
-			client.Conn.Close()
-		}()
+		defer h.disconnect_internal(client)
 
 		for {
+			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 
-			var message Message
+			mt, msg, readErr := conn.ReadMessage()
 
-			if mt, msg, err = conn.ReadMessage(); err != nil {
-				log.Println("Ошибка чтения:", err)
-				break
+			if readErr != nil {
+				if websocket.IsUnexpectedCloseError(readErr,
+					websocket.CloseGoingAway,
+					websocket.CloseAbnormalClosure,
+				) {
+					log.Printf("Client disconnected: %v", readErr)
+				} else {
+					log.Printf("Read error: %v", readErr)
+				}
+				return
 			}
 
 			if mt != websocket.TextMessage {
 				continue
 			}
 
-			parseErr := json.Unmarshal(msg, &message)
-			if parseErr != nil {
-				log.Println(parseErr)
+			var message Message
+			if parseErr := json.Unmarshal(msg, &message); parseErr != nil {
+				log.Printf("JSON parse error: %v", parseErr)
+				continue
 			}
+
+			log.Printf("Received: method=%s", message.Method)
 
 			if handler, ok := h.handlers[message.Method]; ok {
 				handler(client, message)
 			}
 		}
 	}))
+
+	h.RegisterHandler("close", func(client *Client, message Message) {
+		client.Conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+		client.Conn.Close()
+	})
 }
 
 func (h *Hub) RawBroadcast(mt int, msg []byte) {
@@ -163,4 +167,50 @@ func (h *Hub) Broadcast(method string, msg interface{}) {
 	for _, client := range h.clients {
 		client.Send(method, msg)
 	}
+}
+
+func (h *Hub) Close() {
+	h.shutdown_internal("closed by server")
+}
+
+func (h *Hub) CloseWithReason(reason string) {
+	h.shutdown_internal(reason)
+}
+
+func (h *Hub) shutdown_internal(reason string) {
+	h.m.RLock()
+	clients := make([]*Client, 0, len(h.clients))
+	for _, c := range h.clients {
+		clients = append(clients, c)
+	}
+	h.m.RUnlock()
+
+	for _, client := range clients {
+		client.Send("close", reason)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	for _, client := range clients {
+		h.disconnect_internal(client)
+	}
+}
+
+func (h *Hub) disconnect_internal(client *Client) {
+	h.m.Lock()
+	delete(h.clients, client.Id.String())
+	h.m.Unlock()
+	h.onDisconnected(client, client.Conn)
+
+	client.m.Lock()
+	for _, room := range client.connectedRooms {
+		client.internalRemoveFromRoom(room)
+	}
+	client.m.Unlock()
+
+	closeMsg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "server shutting down")
+	_ = client.Conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second*5))
+
+	time.Sleep(100 * time.Millisecond)
+	client.Conn.Close()
 }
